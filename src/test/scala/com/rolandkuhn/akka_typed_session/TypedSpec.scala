@@ -58,7 +58,7 @@ abstract class TypedSpec(val config: Config) extends TypedSpecSetup {
   def setTimeout: Timeout = Timeout(1.minute)
 
   implicit lazy val system: ActorSystem[TypedSpec.Command] = {
-    val sys = ActorSystem(guardian(), AkkaSpec.getCallerName(classOf[TypedSpec]), config = Some(config withFallback AkkaSpec.testConf))
+    val sys = ActorSystem(guardian(), AkkaSpec.getCallerName(classOf[TypedSpec]), config = config withFallback AkkaSpec.testConf)
     sys
   }
 
@@ -73,7 +73,7 @@ abstract class TypedSpec(val config: Config) extends TypedSpecSetup {
 
     def start[T](behv: Behavior[T]): ActorRef[T] = {
       import akka.actor.typed.scaladsl.AskPattern._
-      import akka.testkit.typed.scaladsl._
+      import akka.actor.testkit.typed.scaladsl._
       implicit val testSettings = TestKitSettings(system)
       Await.result(system ? TypedSpec.Create(behv, nextName()), 3.seconds.dilated)
     }
