@@ -10,15 +10,16 @@ import scala.concurrent.duration._
 import org.scalatest.Succeeded
 import akka.actor.InvalidActorNameException
 import akka.Done
-import java.util.concurrent.TimeoutException
+import akka.actor.testkit.typed.{Effect => AEffect}
 
+import java.util.concurrent.TimeoutException
 import akka.actor.typed.receptionist.Receptionist.{Find, Listing, Register, Registered}
 import akka.actor.typed.receptionist.ServiceKey
 import org.scalatest.prop.PropertyChecks
 
 import scala.collection.immutable.TreeSet
 import scala.util.Random
-import akka.testkit.typed.scaladsl._
+import akka.actor.testkit.typed.scaladsl._
 
 object ProcessSpec {
 
@@ -128,7 +129,7 @@ class ProcessSpec extends TypedSpec {
             //          }
             _ ← opUnit(serverRef ! MainCmd(Request("hello", self)))
             msg1 ← opRead
-            succ1 = msg1 should ===(Response("yeehah"))
+            succ1 = (msg1 should ===(Response("yeehah")))
             _ ← opUnit(serverRef ! MainCmd(Request("hello", self)))
             msg2 ← opRead
             succ2 = msg2 should ===(Response("yeehah"))
@@ -259,7 +260,7 @@ class ProcessSpec extends TypedSpec {
     private def assertStopping(ctx: BehaviorTestKit[_], n: Int): Unit = {
       val stopping = ctx.retrieveAllEffects()
       stopping.size should ===(n)
-      stopping.collect { case Effects.Stopped(_) => true }.size should ===(n)
+      stopping.collect { case AEffect.Stopped(_) => true }.size should ===(n)
     }
 
     def `must reject invalid process names early`(): Unit = {
@@ -278,7 +279,7 @@ class ProcessSpec extends TypedSpec {
       val ctx = BehaviorTestKit(OpDSL[ActorRef[Done]] { implicit opDSL ⇒
         opRead
       }.named("read").toBehavior)
-      val Effects.Spawned(_,name, _) :: Nil = ctx.retrieveAllEffects()
+      val AEffect.Spawned(_,name, _) :: Nil = ctx.retrieveAllEffects()
       withClue(s" name=$name") {
         name.substring(0, 1) should ===("$")
         // FIXME #22938 name.substring(name.length - 5) should ===("-read")
@@ -292,7 +293,7 @@ class ProcessSpec extends TypedSpec {
         opRead.map(_ ! Done)
       }.named("read").toBehavior)
 
-      val Effects.Spawned(_, procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, procName, _) = ctx.retrieveEffect()
       ctx.retrieveAllEffects().size should ===(0)
       val procInbox = ctx.childInbox[ActorRef[Done]](procName)
 
@@ -319,7 +320,7 @@ class ProcessSpec extends TypedSpec {
         }.named("called")))
       }.named("call").toBehavior)
 
-      val Effects.Spawned(_,procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_,procName, _) = ctx.retrieveEffect()
 
       ctx.retrieveAllEffects().size should ===(0)
       val procInbox = ctx.childInbox[ActorRef[Done]](procName)
@@ -333,7 +334,7 @@ class ProcessSpec extends TypedSpec {
         case other            ⇒ fail(s"expected SubActor, got $other")
       }
       ctx.run(t)
-      val Effects.Spawned(_, calledName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, calledName, _) = ctx.retrieveEffect()
 
       assertStopping(ctx, 2)
       ctx.selfInbox.receiveAll() should ===(Nil)
@@ -350,10 +351,10 @@ class ProcessSpec extends TypedSpec {
           }
       }.named("call").toBehavior, "call")
 
-      val Effects.Spawned(_, procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, procName, _) = ctx.retrieveEffect()
       val procInbox = ctx.childInbox[ActorRef[Done]](procName)
 
-      val Effects.Spawned(_, forkName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, forkName, _) = ctx.retrieveEffect()
       val forkInbox = ctx.childInbox[ActorRef[Done]](forkName)
       ctx.retrieveAllEffects().nonEmpty should ===(false)
 
@@ -396,7 +397,7 @@ class ProcessSpec extends TypedSpec {
         } yield ret.ref ! Info(sys, proc, actor, value)
       }.named("things").toBehavior)
 
-      val Effects.Spawned(_, procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, procName, _) = ctx.retrieveEffect()
       assertStopping(ctx, 1)
       ctx.isAlive should ===(false)
 
@@ -416,7 +417,7 @@ class ProcessSpec extends TypedSpec {
         } yield opRead
       }.toBehavior)
 
-      val Effects.Spawned(_, procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, procName, _) = ctx.retrieveEffect()
       assertStopping(ctx, 1)
       ctx.isAlive should ===(false)
     }
@@ -434,8 +435,8 @@ class ProcessSpec extends TypedSpec {
         } yield opRead
       }.toBehavior)
 
-      val Effects.Spawned(_, procName, _) = ctx.retrieveEffect()
-      val Effects.Spawned(_, calleeName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, procName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, calleeName, _) = ctx.retrieveEffect()
       // FIXME #22938 calleeName should endWith("-callee")
       assertStopping(ctx, 2)
       ctx.isAlive should ===(false)
@@ -458,8 +459,8 @@ class ProcessSpec extends TypedSpec {
         }
       }.toBehavior)
 
-      val Effects.Spawned(_, _, _) = ctx.retrieveEffect()
-      val Effects.Spawned(_, calleeName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, calleeName, _) = ctx.retrieveEffect()
       // FIXME #22938 calleeName should endWith("-callee")
       assertStopping(ctx, 1)
       ctx.isAlive should ===(true)
@@ -483,7 +484,7 @@ class ProcessSpec extends TypedSpec {
         }
       }.toBehavior)
 
-      val Effects.Spawned(_, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, _, _) = ctx.retrieveEffect()
       assertStopping(ctx, 1)
       ctx.isAlive should ===(false)
       calls.reverse should ===(List(0, 2, 3, 1, 4))
@@ -513,8 +514,8 @@ class ProcessSpec extends TypedSpec {
         }
       }.toBehavior)
 
-      val Effects.Spawned(_, _, _) = ctx.retrieveEffect()
-      val Effects.Spawned(calleeName, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(calleeName, _, _) = ctx.retrieveEffect()
       // FIXME #22938 calleeName should endWith("-callee")
       assertStopping(ctx, 2)
       ctx.isAlive should ===(false)
@@ -547,8 +548,8 @@ class ProcessSpec extends TypedSpec {
         }
       }.toBehavior)
 
-      val Effects.Spawned(_, _, _) = ctx.retrieveEffect()
-      val Effects.Spawned(_, calleeName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, calleeName, _) = ctx.retrieveEffect()
       // FIXME #22938 calleeName should endWith("-callee")
       assertStopping(ctx, 2)
       ctx.isAlive should ===(false)
@@ -571,7 +572,7 @@ class ProcessSpec extends TypedSpec {
         }
       }.toBehavior)
 
-      val Effects.Spawned(_, mainName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, mainName, _) = ctx.retrieveEffect()
       ctx.retrieveAllEffects() should ===(Nil)
 
       ctx.run(MainCmd(""))
@@ -599,8 +600,8 @@ class ProcessSpec extends TypedSpec {
         } yield throw new Exception("expected")
       }.toBehavior)
 
-      val Effects.Spawned(_, mainName, _) = ctx.retrieveEffect()
-      val Effects.Spawned(_, forkName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, mainName, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, forkName, _) = ctx.retrieveEffect()
       // FIXME #22938 forkName should endWith("-fork")
       ctx.retrieveAllEffects() should ===(Nil)
 
@@ -637,7 +638,7 @@ class ProcessSpec extends TypedSpec {
         } yield publish(i3)
       }.toBehavior, "state")
 
-      val Effects.Spawned(_, _, _) = ctx.retrieveEffect()
+      val AEffect.Spawned(_, _, _) = ctx.retrieveEffect()
       assertStopping(ctx, 1)
       ctx.isAlive should ===(false)
       values.reverse should ===(List(0, 5, 2, 4, 0))
